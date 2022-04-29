@@ -12,7 +12,7 @@ const Client = struct {
     handle: @Frame(Client.handle),
 
     pub fn init(conn: Connection) Client {
-        return Client {
+        return Client{
             .conn = conn,
             .handle = Client.handle,
         };
@@ -22,9 +22,7 @@ const Client = struct {
         self.conn.stream.close();
     }
 
-    pub fn handle() void {
-
-    }
+    pub fn handle() void {}
 };
 
 const Room = struct {
@@ -32,7 +30,7 @@ const Room = struct {
 
     pub fn init(allocator: std.mem.Allocator) Room {
         return Room{
-            .active_connections= std.ArrayList(?Connection).init(allocator),
+            .active_connections = std.ArrayList(?Connection).init(allocator),
         };
     }
 };
@@ -45,10 +43,10 @@ pub fn main() anyerror!void {
     const port = 8080;
     var stream_server = try listenStreamServer(name, port);
     defer stream_server.deinit();
-  
+
     log.info("listening on {s}:{d}", .{ name, port });
 
-    var room = Room.init(allocator); 
+    var room = Room.init(allocator);
 
     var i: usize = 0;
     while (i < 3) : (i += 1) {
@@ -80,7 +78,7 @@ fn handle(conn: Connection, room: *Room) !void {
     }
 }
 
-fn listenStreamServer(name: []const u8, port :u16) !net.StreamServer {
+fn listenStreamServer(name: []const u8, port: u16) !net.StreamServer {
     var stream_server = net.StreamServer.init(.{});
 
     const address = try net.Address.resolveIp(name, port);
@@ -101,7 +99,6 @@ test "tcp connections" {
     var client2 = try listenStreamServer(name, 10002);
     try testing.expect(client1.listen_address.getPort() == 10001);
     try testing.expect(client2.listen_address.getPort() == 10002);
-
 }
 
 var workers_counter: usize = 0;
@@ -111,17 +108,19 @@ test "workers" {
 
     try testing.expect(workers_counter == 0);
 
-    var i: usize = 0; 
+    var i: usize = 0;
     while (i < 3) : (i += 1) {
-        try threads.append(try std.Thread.spawn(.{}, worker, .{}));
+        try threads.append(try std.Thread.spawn(.{}, worker, .{0}));
     }
 
     for (threads.items) |thread| {
         thread.join();
     }
 
+    try testing.expect(workers_counter == 3);
 }
 
-fn worker() void {
+fn worker(input: u16) !void {
+    try testing.expect(input == 0);
     workers_counter += 1;
 }

@@ -9,20 +9,21 @@ pub const io_mode = .evented;
 
 const Client = struct {
     conn: Connection,
-    handle: @Frame(Client.handle),
+    frame: @Frame(Client.handle),
 
-    pub fn init(conn: Connection) Client {
-        return Client{
-            .conn = conn,
-            .handle = Client.handle,
-        };
+    fn handle(self: *Client) !void {
+        var buf: [128]u8 = undefined;
+        while (true) {
+            log.info("reading on: {}", .{self.conn.address});
+            const n = try self.conn.stream.reader().read(&buf);
+            if (n == 0) {
+                return;
+            }
+
+            const msg = buf[0..n];
+            try self.conn.stream.writer().print("write: {s}\n", .{msg});
+        }
     }
-
-    pub fn deinit(self: *Client) void {
-        self.conn.stream.close();
-    }
-
-    pub fn handle() void {}
 };
 
 const Room = struct {
@@ -46,14 +47,10 @@ pub fn main() anyerror!void {
 
     log.info("listening on {s}:{d}", .{ name, port });
 
-    var room = Room.init(allocator);
-
     var i: usize = 0;
     while (i < 3) : (i += 1) {
-        const conn = try stream_server.accept();
-        try room.active_connections.append(conn);
-        // TODO
-        _ = async handle(conn, &room);
+        const client: *Client = try allocator.create(Client);
+        client.* = .{ .conn = try stream_server.accept(), .frame = async client.handle() };
     }
 
     // TODO

@@ -11,7 +11,7 @@ const Client = struct {
     conn: Connection,
     frame: @Frame(Client.handle),
 
-    fn handle(self: *Client) !void {
+    fn handle(self: *Client, room: *Room) !void {
         var buf: [128]u8 = undefined;
         while (true) {
             log.info("reading on: {}", .{self.conn.address});
@@ -21,7 +21,11 @@ const Client = struct {
             }
 
             const msg = buf[0..n];
-            try self.conn.stream.writer().print("write: {s}\n", .{msg});
+            for (room.active_connections.items) |opt| {
+                if (opt) |c| {
+                    try c.stream.writer().print("write: {s}\n", .{msg});
+                }
+            }
         }
     }
 };
@@ -47,32 +51,16 @@ pub fn main() anyerror!void {
 
     log.info("listening on {s}:{d}", .{ name, port });
 
+    var room = Room.init(allocator);
+
     var i: usize = 0;
     while (i < 3) : (i += 1) {
         const client: *Client = try allocator.create(Client);
-        client.* = .{ .conn = try stream_server.accept(), .frame = async client.handle() };
+        client.* = .{ .conn = try stream_server.accept(), .frame = async client.handle(&room) };
+        try room.active_connections.append(client.conn);
     }
 
-    // TODO
     log.err("maximum number of clients reached, disconnecting!", .{});
-}
-
-fn handle(conn: Connection, room: *Room) !void {
-    var buf: [128]u8 = undefined;
-    while (true) {
-        log.info("reading on: {}", .{conn.address});
-        const n = try conn.stream.reader().read(&buf);
-        if (n == 0) {
-            return;
-        }
-
-        const msg = buf[0..n];
-        for (room.active_connections.items) |opt| {
-            if (opt) |c| {
-                try c.stream.writer().print("write: {s}\n", .{msg});
-            }
-        }
-    }
 }
 
 fn listenStreamServer(name: []const u8, port: u16) !net.StreamServer {
